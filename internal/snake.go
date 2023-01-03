@@ -5,57 +5,59 @@ type SnakeCell struct {
 	positionY     int32
 	prevPositionX int32
 	prevPositionY int32
-	isHead        bool
 	symbol        int32
 }
 
 type Snake struct {
-	head          int32
 	size          int32
-	cells         []SnakeCell
+	cells         []*SnakeCell
+	head          *SnakeCell
 	isContainBody bool
 }
 
 func (s *Snake) Init() {
-	s.head = headSymbol
 	s.size = 0
 }
 
-func (s *Snake) AddCell(symbol int32, x int32, y int32, isHead bool) SnakeCell {
+func (s *Snake) AddCell(symbol int32) *SnakeCell {
 	cell := new(SnakeCell)
 
-	cell.positionX = x
-	cell.positionY = y
-	cell.isHead = isHead
 	cell.symbol = symbol
 
-	if isHead != true {
-		s.isContainBody = true
-	}
-
-	s.cells = append(s.cells, *cell)
+	s.cells = append(s.cells, cell)
 	s.size++
+	s.isContainBody = true
 
-	return *cell
+	return cell
 }
 
-func (s *Snake) GetHeadCell() SnakeCell {
-	for _, v := range s.cells {
-		if v.isHead {
-			return v
-		}
+func (s *Snake) GetFirstCell() *SnakeCell {
+	if s.isContainBody {
+		return s.cells[0]
 	}
 
-	panic("Cannot get head cell")
+	return nil
 }
 
-func (s *Snake) isHeadOnBody(x int32, y int32) bool {
-	for _, v := range s.cells {
-		if v.isHead {
-			continue
-		}
+func (s *Snake) CreateHead(symbol int32, x int32, y int32) *SnakeCell {
+	cell := new(SnakeCell)
 
-		if x == v.positionX && y == v.positionY {
+	cell.symbol = symbol
+	cell.positionX = x
+	cell.positionY = y
+
+	s.head = cell
+
+	return cell
+}
+
+func (s *Snake) GetHeadCell() *SnakeCell {
+	return s.head
+}
+
+func (s *Snake) isHeadOnBody() bool {
+	for _, v := range s.cells {
+		if s.head.positionX == v.positionX && s.head.positionY == v.positionY {
 			return true
 		}
 	}
@@ -65,4 +67,23 @@ func (s *Snake) isHeadOnBody(x int32, y int32) bool {
 
 func (s *Snake) GetSize() int32 {
 	return s.size
+}
+
+func (s *Snake) CalculatePositions(cell SnakeCell, direction int32) SnakeCell {
+	switch direction {
+	case directionLeft:
+		cell.positionY--
+		break
+	case directionUp:
+		cell.positionX--
+		break
+	case directionRight:
+		cell.positionY++
+		break
+	case directionDown:
+		cell.positionX++
+		break
+	}
+
+	return cell
 }

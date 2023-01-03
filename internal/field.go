@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"os"
 )
 
 const lineSize int32 = 10
@@ -21,6 +20,7 @@ const directions int32 = 0x04
 const fieldSymbol = '.'
 const headSymbol = 0x40
 const bodySymbol = 0x23
+const boosterSymbol = 0x25
 
 const (
 	directionLeft  = 0
@@ -66,9 +66,9 @@ type Field struct {
 func (f *Field) Init(s *Snake, l *Logger) {
 	f.isActive = true
 	f.snake = s
+	f.logger = l
 	f.isAllowCrossBoarding = isAllowCrossBoarding
 	f.buffer = new([lineSize][lineSize]string)
-	f.logger = l
 
 	for i, line := range f.buffer {
 		for j := range line {
@@ -113,6 +113,8 @@ func (f *Field) Print() {
 
 		C.addstr(C.CString("\n"))
 	}
+
+	C.addstr(C.CString("Press backspace for exit\n"))
 }
 
 func (f *Field) SetSnakeHead() {
@@ -122,12 +124,12 @@ func (f *Field) SetSnakeHead() {
 	posY := rand.Int31n(lineSize-min) + 1
 
 	f.direction = rand.Int31n(directions)
-	cell := f.snake.AddCell(headSymbol, posX, posY, true)
+	cell := f.snake.CreateHead(headSymbol, posX, posY)
 
 	f.buffer[cell.positionX][cell.positionY] = string(cell.symbol)
 }
 
-func (f *Field) MoveHead() {
+func (f *Field) MoveHead() error {
 	cell := f.snake.GetHeadCell()
 
 	// Current coordinates writing to prev properties
@@ -151,18 +153,21 @@ func (f *Field) MoveHead() {
 		break
 	}
 
-	if f.snake.isHeadOnBody(cell.positionX, cell.positionY) {
-		panic("you was failed")
+	if f.snake.isHeadOnBody() {
+		return errors.New("you ate yourself")
 	}
 
-	file, _ := os.OpenFile("./test.log", os.O_APPEND|os.O_WRONLY, os.ModePerm)
-
-	file.WriteString(fmt.Sprint(cell.positionX, cell.positionY, f.boosterPositionX, f.boosterPositionY, "\n"))
+	f.logger.WriteString(
+		fmt.Sprintf(
+			"Calculated positions for head: currentX [%d], currentY [%d], prevX [%d], prevY [%d]",
+			cell.positionX, cell.positionY, cell.prevPositionX, cell.prevPositionY,
+		),
+	)
 
 	if cell.positionX == f.boosterPositionX && cell.positionY == f.boosterPositionY {
-		file.WriteString(fmt.Sprint(cell.prevPositionX, cell.prevPositionY, "\n"))
+		f.logger.WriteString(fmt.Sprint("Booster eats"))
 
-		f.snake.AddCell(bodySymbol, cell.prevPositionX, cell.prevPositionY, false)
+		f.snake.AddCell(bodySymbol)
 
 		f.isBoosterSpawned = false
 	}
@@ -183,10 +188,9 @@ func (f *Field) MoveHead() {
 		cell.positionY = yBorderLowerPossible
 	}
 
-	f.snake.cells[0] = cell
 	f.buffer[cell.positionX][cell.positionY] = string(cell.symbol)
 
-	file.Close()
+	return nil
 }
 
 func (f *Field) FillBody() {
@@ -195,16 +199,13 @@ func (f *Field) FillBody() {
 	prevPositionX := headCell.prevPositionX
 	prevPositionY := headCell.prevPositionY
 
-	file, _ := os.OpenFile("./test.log", os.O_APPEND|os.O_WRONLY, os.ModePerm)
-
-	defer file.Close()
-
 	for i, v := range f.snake.cells {
-		file.WriteString(fmt.Sprint("fillbody: ", v.isHead, v.prevPositionX, v.prevPositionY, v.positionX, v.positionY, "\n"))
-
-		if v.isHead {
-			continue
-		}
+		f.logger.WriteString(
+			fmt.Sprintf(
+				"Fill body: i [%d], currentX [%d], currentY [%d], prevX [%d], prevY [%d], prevHeadX [%d], prevHeadY [%d]",
+				i, v.positionX, v.positionY, v.prevPositionX, v.prevPositionY, prevPositionX, prevPositionY,
+			),
+		)
 
 		v.prevPositionX = v.positionX
 		v.prevPositionY = v.positionY
@@ -212,126 +213,43 @@ func (f *Field) FillBody() {
 		v.positionX = prevPositionX
 		v.positionY = prevPositionY
 
-		f.snake.cells[i] = v
-
 		f.buffer[v.prevPositionX][v.prevPositionY] = string(fieldSymbol)
 		f.buffer[v.positionX][v.positionY] = string(v.symbol)
 
 		prevPositionX = v.prevPositionX
 		prevPositionY = v.prevPositionY
+
+		f.logger.WriteString(
+			fmt.Sprintf(
+				"Fill body end: i [%d], currentX [%d], currentY [%d], prevX [%d], prevY [%d], prevHeadX [%d], prevHeadY [%d]",
+				i, v.positionX, v.positionY, v.prevPositionX, v.prevPositionY, prevPositionX, prevPositionY,
+			),
+		)
 	}
 }
 
 func (f *Field) OnStep() error {
-	f.MoveHead()
-	f.FillBody()
-
-	return nil
-
-	for i, v := range f.snake.cells {
-		v.prevPositionX = v.positionX
-		v.prevPositionY = v.positionY
-
-		f.buffer[v.positionX][v.positionY] = string(fieldSymbol)
-
-		if v.isHead {
-			switch f.direction {
-			case directionLeft:
-				v.positionY--
-				break
-			case directionUp:
-				v.positionX--
-				break
-			case directionRight:
-				v.positionY++
-				break
-			case directionDown:
-				v.positionX++
-				break
-			}
-
-			if f.snake.isContainBody {
-				nextCell := f.snake.cells[i+1]
-
-				if v.positionX == nextCell.positionX && v.positionY == nextCell.positionY {
-					v.positionX = v.prevPositionX
-					v.positionY = v.prevPositionY
-
-					f.direction = f.prevDirection
-
-					switch f.direction {
-					case directionLeft:
-						v.positionY--
-						break
-					case directionUp:
-						v.positionX--
-						break
-					case directionRight:
-						v.positionY++
-						break
-					case directionDown:
-						v.positionX++
-						break
-					}
-				}
-			}
-
-			if f.snake.isHeadOnBody(v.positionX, v.positionY) {
-				return errors.New("you was failed")
-			}
-
-			if v.positionX == f.boosterPositionX && v.positionY == f.boosterPositionY {
-				f.snake.AddCell(bodySymbol, v.prevPositionX, v.prevPositionY, false)
-
-				f.isBoosterSpawned = false
-			}
-		} else {
-			vOld := f.snake.cells[i-1]
-
-			v.positionX = vOld.prevPositionX
-			v.positionY = vOld.prevPositionY
-		}
-
-		if v.positionX == xBorderLower && f.direction == directionUp {
-			if !isAllowCrossBoarding {
-				return errors.New("you was failed")
-			}
-
-			v.positionX = xBorderHigherPossible
-		}
-
-		if v.positionX == xBorderHigher && f.direction == directionDown {
-			if !isAllowCrossBoarding {
-				return errors.New("you was failed")
-			}
-
-			v.positionX = xBorderLowerPossible
-		}
-
-		if v.positionY == yBorderLower && f.direction == directionLeft {
-			if !isAllowCrossBoarding {
-				return errors.New("you was failed")
-			}
-
-			v.positionY = yBorderHigherPossible
-		}
-
-		if v.positionY == yBorderHigher && f.direction == directionRight {
-			if !isAllowCrossBoarding {
-				return errors.New("you was failed")
-			}
-
-			v.positionY = yBorderLowerPossible
-		}
-
-		f.snake.cells[i] = v
-		f.buffer[v.positionX][v.positionY] = string(v.symbol)
+	err := f.MoveHead()
+	if err != nil {
+		return err
 	}
+
+	f.FillBody()
 
 	return nil
 }
 
 func (f *Field) ChangeDirection(d int32) {
+	headCell := *f.snake.GetHeadCell()
+	headCell = f.snake.CalculatePositions(headCell, d)
+
+	cell := f.snake.GetFirstCell()
+
+	// If direction was changed to a cell, that contains a body cell, this action is rejected
+	if cell != nil && headCell.positionX == cell.positionX && headCell.positionY == cell.positionY {
+		return
+	}
+
 	f.prevDirection = f.direction
 	f.direction = d
 }
@@ -364,7 +282,7 @@ func (f *Field) SpawnBooster() {
 	f.boosterPositionY = spawnPointY
 	f.isBoosterSpawned = true
 
-	f.buffer[spawnPointX][spawnPointY] = "%"
+	f.buffer[spawnPointX][spawnPointY] = string(rune(boosterSymbol))
 }
 
 func (f *Field) ChangeDirectionByKey() {
@@ -398,6 +316,10 @@ func (f *Field) ChangeDirectionByKey() {
 
 func (f *Field) IsActive() bool {
 	return f.isActive
+}
+
+func (f *Field) SetIsActive(isActive bool) {
+	f.isActive = isActive
 }
 
 func (f *Field) GetSnake() *Snake {

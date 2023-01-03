@@ -1,9 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"github.com/paniclong/snake-game/internal"
 	"log"
 	"math/rand"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -14,11 +18,17 @@ import (
 */
 import "C"
 
-const baseDelay = 700
+const baseDelay = 300
 const minDelay = 100
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
+
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Something went wrong: ", r)
+		}
+	}()
 
 	logger := *new(internal.Logger)
 	err := logger.Init()
@@ -31,6 +41,8 @@ func main() {
 
 	field := *new(internal.Field)
 	field.Init(&snake, &logger)
+
+	CatchSignals(&field)
 
 	defer logger.Close()
 
@@ -60,13 +72,16 @@ func main() {
 		}
 
 		field.SpawnBooster()
-		err := field.OnStep()
+		err = field.OnStep()
+		field.Print()
+
+		C.refresh()
+
 		if err != nil {
+			C.addstr(C.CString(err.Error()))
+
 			return
 		}
-
-		field.Print()
-		C.refresh()
 
 		size := field.GetSnake().GetSize()
 
@@ -78,4 +93,18 @@ func main() {
 
 		time.Sleep(sleepTime)
 	}
+}
+
+func CatchSignals(f *internal.Field) {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan,
+		syscall.SIGHUP,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGQUIT)
+	go func(f *internal.Field) {
+		<-sigChan
+
+		f.SetIsActive(false)
+	}(f)
 }

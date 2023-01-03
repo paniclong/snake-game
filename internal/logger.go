@@ -18,7 +18,7 @@ func (l *Logger) Init() error {
 
 	l.file = file
 
-	err = l.writeString("Init logger")
+	err = l.WriteString("Init logger")
 
 	if err != nil {
 		return err
@@ -37,7 +37,11 @@ func (l *Logger) Close() error {
 	return nil
 }
 
-func (l *Logger) writeString(s string) error {
+func (l *Logger) WriteString(s string, disabled ...bool) error {
+	if len(disabled) > 0 && disabled[0] {
+		return nil
+	}
+
 	t := time.Now().Format(time.RFC3339Nano)
 
 	_, err := l.file.WriteString("[" + t + "] " + s + "\n")
