@@ -1,9 +1,9 @@
 package main
 
 import (
+	"github.com/paniclong/snake-game/internal"
 	"log"
 	"math/rand"
-	"snake-game/internal"
 	"time"
 )
 
