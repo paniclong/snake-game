@@ -21,20 +21,26 @@ import "C"
 const baseDelay = 300
 const minDelay = 100
 
+const exitFailure = 0x0
+
 func main() {
 	rand.Seed(time.Now().UnixNano())
-
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println("Something went wrong: ", r)
-		}
-	}()
 
 	logger := *new(internal.Logger)
 	err := logger.Init()
 	if err != nil {
 		log.Panic(err)
 	}
+
+	defer func(l *internal.Logger) {
+		defer l.Close()
+
+		if r := recover(); r != nil {
+			l.WriteString(fmt.Sprint("Something went wrong: ", r))
+
+			os.Exit(exitFailure)
+		}
+	}(&logger)
 
 	snake := *new(internal.Snake)
 	snake.Init()
@@ -43,8 +49,6 @@ func main() {
 	field.Init(&snake, &logger)
 
 	CatchSignals(&field)
-
-	defer logger.Close()
 
 	// Init screen
 	C.initscr()
@@ -55,6 +59,10 @@ func main() {
 
 	defer C.endwin()
 
+	C.addstr(C.CString(GetMenuText()))
+	C.addstr(C.CString("Press any key for start game"))
+	C.getch()
+
 	go field.ChangeDirectionByKey()
 
 	// Base delay is 300 mc
@@ -63,25 +71,30 @@ func main() {
 	sleepTime := delay
 
 	for {
-		C.clear()
-
 		if !field.IsActive() {
 			C.refresh()
 
 			return
 		}
 
-		field.SpawnBooster()
-		err = field.OnStep()
-		field.Print()
+		if !field.IsFirstStart {
+			err = field.OnStep()
+			if err != nil {
+				logger.WriteString(fmt.Sprint("On step error: ", err.Error()))
+				C.addstr(C.CString(err.Error()))
 
-		C.refresh()
-
-		if err != nil {
-			C.addstr(C.CString(err.Error()))
-
-			return
+				return
+			}
+		} else {
+			field.IsFirstStart = false
 		}
+
+		field.ReCalcBoosters()
+		field.ReCalcEnemies()
+
+		C.clear()
+		field.Print()
+		C.refresh()
 
 		size := field.GetSnake().GetSize()
 
@@ -107,4 +120,15 @@ func CatchSignals(f *internal.Field) {
 
 		f.SetIsActive(false)
 	}(f)
+}
+
+func GetMenuText() string {
+	return fmt.Sprintf("Symbols: \n 1. %s - snake head \n 2. %s - snake body \n 3. %s - boosters \n "+
+		"4. %s - enemy, one shot \n 5. %s - enemy, no one shot \n",
+		string(internal.HeadSymbol),
+		string(internal.BodySymbol),
+		string(internal.BoosterSymbol),
+		string(internal.EnemyOneShotSymbol),
+		string(internal.EnemySymbol),
+	)
 }

@@ -1,16 +1,21 @@
 package internal
 
 import (
+	"fmt"
 	"os"
 	"time"
 )
+
+const logFilePath = "./logs/%s.log"
 
 type Logger struct {
 	file *os.File
 }
 
 func (l *Logger) Init() error {
-	file, err := os.OpenFile("./test.log", os.O_APPEND|os.O_WRONLY, os.ModePerm)
+	t := time.Now().Format("2006-01-01")
+
+	file, err := os.OpenFile(fmt.Sprintf(logFilePath, t), os.O_TRUNC|os.O_CREATE|os.O_WRONLY, os.ModePerm)
 
 	if err != nil {
 		return err

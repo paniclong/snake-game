@@ -8,11 +8,20 @@ type SnakeCell struct {
 	symbol        int32
 }
 
+type Coordinates struct {
+	positionX int32
+	positionY int32
+}
+
+type SnakeStats struct {
+	countOfEatBoosters int32
+	size               int32
+}
+
 type Snake struct {
-	size          int32
-	cells         []*SnakeCell
-	head          *SnakeCell
-	isContainBody bool
+	cells []*SnakeCell
+	head  *SnakeCell
+	SnakeStats
 }
 
 func (s *Snake) Init() {
@@ -26,13 +35,12 @@ func (s *Snake) AddCell(symbol int32) *SnakeCell {
 
 	s.cells = append(s.cells, cell)
 	s.size++
-	s.isContainBody = true
 
 	return cell
 }
 
 func (s *Snake) GetFirstCell() *SnakeCell {
-	if s.isContainBody {
+	if len(s.cells) > 0 {
 		return s.cells[0]
 	}
 
@@ -86,4 +94,38 @@ func (s *Snake) CalculatePositions(cell SnakeCell, direction int32) SnakeCell {
 	}
 
 	return cell
+}
+
+func (s *Snake) DeleteLastCells(c int) []Coordinates {
+	index := len(s.cells) - c
+
+	if index < 0 {
+		index = 0
+	}
+
+	var tmp = *new([]*SnakeCell)
+	var coordinates = *new([]Coordinates)
+
+	j := 0
+
+	for i, cell := range s.cells {
+		if i >= index {
+			coords := new(Coordinates)
+			coords.positionX = cell.positionX
+			coords.positionY = cell.positionY
+
+			coordinates = append(coordinates, *coords)
+
+			j++
+			s.size--
+
+			continue
+		}
+
+		tmp = append(tmp, cell)
+	}
+
+	s.cells = tmp
+
+	return coordinates
 }
