@@ -21,7 +21,7 @@ import "C"
 const baseDelay = 300
 const minDelay = 100
 
-const exitFailure = 0x0
+const exitFailureCode = 0x1
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
@@ -38,7 +38,7 @@ func main() {
 		if r := recover(); r != nil {
 			l.WriteString(fmt.Sprint("Something went wrong: ", r))
 
-			os.Exit(exitFailure)
+			os.Exit(exitFailureCode)
 		}
 	}(&logger)
 

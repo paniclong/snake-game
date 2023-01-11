@@ -247,8 +247,6 @@ func (f *Field) MoveHead() error {
 			} else {
 				coordinates := f.snake.DeleteLastCells(int(countOfCells))
 
-				f.logger.WriteString(fmt.Sprintf("Delete last cells: %v", coordinates))
-
 				for _, v := range coordinates {
 					f.buffer[v.positionX][v.positionY] = fieldSymbol
 				}
@@ -350,7 +348,7 @@ func (f *Field) ChangeDirection(d int32) error {
 	f.prevDirection = f.direction
 	f.direction = d
 
-	f.logger.WriteString(fmt.Sprintf("Changed direction, now: [%d], previos: [%d]", f.direction, f.prevDirection))
+	f.logger.WriteString(fmt.Sprintf("Changed direction, current: [%d], previous: [%d]", f.direction, f.prevDirection))
 
 	return nil
 }
