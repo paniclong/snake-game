@@ -24,6 +24,13 @@ type Snake struct {
 	SnakeStats
 }
 
+func CreateSnake() *Snake {
+	snake := new(Snake)
+	snake.Init()
+
+	return snake
+}
+
 func (s *Snake) Init() {
 	s.size = 0
 }

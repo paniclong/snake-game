@@ -51,7 +51,7 @@ const (
 )
 
 // Coordinates borders (x, y). Needed when flag isAllowCrossBoarding = true
-// Allows snakes to move to the opposite border
+// Allows snake to move to the opposite border
 const (
 	xBorderLower          = 0x0
 	yBorderLower          = 0x0
@@ -74,6 +74,13 @@ type Field struct {
 	logger               *Logger
 	boosters             []*Booster
 	enemies              []*Enemy
+}
+
+func CreateField(s *Snake, l *Logger) *Field {
+	field := new(Field)
+	field.Init(s, l)
+
+	return field
 }
 
 func (f *Field) Init(s *Snake, l *Logger) {
@@ -121,13 +128,13 @@ func (f *Field) Print() {
 		s += "\n"
 	}
 
-	s += fmt.Sprintf("Symbols: \n 1. %s - snake head \n 2. %s - snake body \n 3. %s - boosters \n "+
-		"4. %s - enemy, one shot \n 5. %s - enemy, no one shot \n",
-		string(HeadSymbol),
-		string(BodySymbol),
-		string(BoosterSymbol),
-		string(EnemyOneShotSymbol),
-		string(EnemySymbol),
+	s += fmt.Sprintf("Symbols: \n 1. %c - snake head \n 2. %c - snake body \n 3. %c - boosters \n "+
+		"4. %c - enemy, one shot \n 5. %c - enemy, no one shot \n",
+		HeadSymbol,
+		BodySymbol,
+		BoosterSymbol,
+		EnemyOneShotSymbol,
+		EnemySymbol,
 	)
 
 	s += "\n"
@@ -275,9 +282,7 @@ func (f *Field) MoveHead() error {
 			cell.positionY == yBorderLower ||
 			cell.positionX == xBorderHigher ||
 			cell.positionY == yBorderHigher {
-			f.logger.WriteString("Cross boarding is not allowed, you failed")
-
-			return errors.New("borders")
+			return errors.New("cross boarding is not allowed, you failed")
 		}
 	}
 
@@ -357,8 +362,6 @@ func (f *Field) ChangeDirectionByKey() {
 	for {
 		key := C.getch()
 
-		f.logger.WriteString(fmt.Sprint("ChangeDirectionByKey start ----> ", key))
-
 		var d int32 = -1
 
 		switch key {
@@ -377,8 +380,6 @@ func (f *Field) ChangeDirectionByKey() {
 			d = directionDown
 			break
 		}
-
-		f.logger.WriteString(fmt.Sprint("ChangeDirectionByKey ", d))
 
 		if d != -1 {
 			f.ChangeDirection(d)

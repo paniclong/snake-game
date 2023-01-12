@@ -12,6 +12,16 @@ type Logger struct {
 	file *os.File
 }
 
+func CreateLogger() (*Logger, error) {
+	logger := new(Logger)
+	err := logger.Init()
+	if err != nil {
+		return logger, err
+	}
+
+	return logger, nil
+}
+
 func (l *Logger) Init() error {
 	t := time.Now().Format("2006-01-01")
 
