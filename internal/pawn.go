@@ -7,11 +7,11 @@ import (
 )
 
 type Pawn struct {
+	sync.Mutex
 	positionX int32
 	positionY int32
 	symbol    int32
 	spawnTime int64
-	sync.Mutex
 }
 
 type Booster struct {
@@ -27,11 +27,14 @@ type Enemy struct {
 }
 
 func (p *Pawn) GetSpawnTime() int64 {
+	p.Lock()
+	defer p.Unlock()
+
 	return p.spawnTime
 }
 
 func (f *Field) SpawnBooster() {
-	if len(f.boosters) >= limitBoosters {
+	if len(f.GetBoosters()) >= limitBoosters {
 		return
 	}
 
@@ -43,13 +46,13 @@ func (f *Field) SpawnBooster() {
 		spawnPointX = RandomInt32MinMaxN(xBorderLower, xBorderHigher)
 		spawnPointY = RandomInt32MinMaxN(yBorderLower, yBorderHigher)
 
-		for _, v := range f.snake.cells {
+		for _, v := range f.snake.GetCells() {
 			if v.positionX == spawnPointX && v.positionY == spawnPointY {
 				goto repeat
 			}
 		}
 
-		for _, v := range f.enemies {
+		for _, v := range f.GetEnemies() {
 			if v.positionX == spawnPointX && v.positionY == spawnPointY {
 				goto repeat
 			}
@@ -69,14 +72,29 @@ func (f *Field) SpawnBooster() {
 
 	f.logger.WriteString(fmt.Sprintf("Spawned booster, %v", b))
 
+	f.Lock()
 	f.buffer[b.positionX][b.positionY] = BoosterSymbol
+	f.Unlock()
+}
+
+func (f *Field) GetBoosters() []*Booster {
+	f.Lock()
+	defer f.Unlock()
+
+	return f.boosters
 }
 
 func (f *Field) DeSpawnBooster(i int) {
+	f.Lock()
+	defer f.Unlock()
+
 	f.boosters = append(f.boosters[:i], f.boosters[i+1:]...)
 }
 
 func (f *Field) DeSpawnEnemy(i int) {
+	f.Lock()
+	defer f.Unlock()
+
 	e := f.enemies[i]
 	f.buffer[e.positionX][e.positionY] = fieldSymbol
 
@@ -84,10 +102,16 @@ func (f *Field) DeSpawnEnemy(i int) {
 }
 
 func (f *Field) GetEnemies() []*Enemy {
+	f.Lock()
+	defer f.Unlock()
+
 	return f.enemies
 }
 
 func (f *Field) SpawnEnemy() {
+	f.Lock()
+	defer f.Unlock()
+
 	if len(f.enemies) >= limitEnemies {
 		return
 	}

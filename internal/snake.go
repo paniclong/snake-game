@@ -1,5 +1,7 @@
 package internal
 
+import "sync"
+
 type SnakeCell struct {
 	positionX     int32
 	positionY     int32
@@ -19,6 +21,7 @@ type SnakeStats struct {
 }
 
 type Snake struct {
+	sync.Mutex
 	cells []*SnakeCell
 	head  *SnakeCell
 	SnakeStats
@@ -35,25 +38,6 @@ func (s *Snake) Init() {
 	s.size = 0
 }
 
-func (s *Snake) AddCell(symbol int32) *SnakeCell {
-	cell := new(SnakeCell)
-
-	cell.symbol = symbol
-
-	s.cells = append(s.cells, cell)
-	s.size++
-
-	return cell
-}
-
-func (s *Snake) GetFirstCell() *SnakeCell {
-	if len(s.cells) > 0 {
-		return s.cells[0]
-	}
-
-	return nil
-}
-
 func (s *Snake) CreateHead(symbol int32, x int32, y int32) *SnakeCell {
 	cell := new(SnakeCell)
 
@@ -66,11 +50,67 @@ func (s *Snake) CreateHead(symbol int32, x int32, y int32) *SnakeCell {
 	return cell
 }
 
+func (s *Snake) IncrementAteBoosters() {
+	s.countOfEatBoosters++
+}
+
+func (s *Snake) GetCountOfEatBoosters() int32 {
+	s.Lock()
+	defer s.Unlock()
+
+	return s.countOfEatBoosters
+}
+
+func (s *Snake) IncrementSize() {
+	s.Lock()
+	defer s.Unlock()
+
+	s.size++
+}
+
+func (s *Snake) AddCell(symbol int32) *SnakeCell {
+	s.Lock()
+	defer s.Unlock()
+
+	cell := new(SnakeCell)
+
+	cell.symbol = symbol
+
+	s.cells = append(s.cells, cell)
+	s.size++
+
+	return cell
+}
+
+func (s *Snake) GetCells() []*SnakeCell {
+	s.Lock()
+	defer s.Unlock()
+
+	return s.cells
+}
+
+func (s *Snake) GetFirstCell() *SnakeCell {
+	s.Lock()
+	defer s.Unlock()
+
+	if len(s.cells) > 0 {
+		return s.cells[0]
+	}
+
+	return nil
+}
+
 func (s *Snake) GetHeadCell() *SnakeCell {
+	s.Lock()
+	defer s.Unlock()
+
 	return s.head
 }
 
 func (s *Snake) isHeadOnBody() bool {
+	s.Lock()
+	defer s.Unlock()
+
 	for _, v := range s.cells {
 		if s.head.positionX == v.positionX && s.head.positionY == v.positionY {
 			return true
@@ -81,10 +121,16 @@ func (s *Snake) isHeadOnBody() bool {
 }
 
 func (s *Snake) GetSize() int32 {
+	s.Lock()
+	defer s.Unlock()
+
 	return s.size
 }
 
 func (s *Snake) CalculatePositions(cell SnakeCell, direction int32) SnakeCell {
+	s.Lock()
+	defer s.Unlock()
+
 	switch direction {
 	case directionLeft:
 		cell.positionY--
@@ -104,6 +150,9 @@ func (s *Snake) CalculatePositions(cell SnakeCell, direction int32) SnakeCell {
 }
 
 func (s *Snake) DeleteLastCells(c int) []Coordinates {
+	s.Lock()
+	defer s.Unlock()
+
 	index := len(s.cells) - c
 
 	if index < 0 {

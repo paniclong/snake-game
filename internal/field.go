@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"sync"
 	"time"
 )
 
@@ -64,6 +65,7 @@ const (
 )
 
 type Field struct {
+	sync.Mutex
 	snake                *Snake
 	buffer               *[lineSize][lineSize]int32
 	direction            int32 // Default direction (left - 0, up - 1, right - 2, down - 3)
@@ -119,7 +121,7 @@ func (f *Field) Init(s *Snake, l *Logger) {
 func (f *Field) Print() {
 	var s string
 
-	for _, line := range f.buffer {
+	for _, line := range f.GetBuffer() {
 		for _, v := range line {
 
 			s += string(spaceSymbol) + string(v) + string(spaceSymbol)
@@ -138,9 +140,9 @@ func (f *Field) Print() {
 	)
 
 	s += "\n"
-	s += fmt.Sprintf("Snake size: %d\n", f.snake.size+1)
-	s += fmt.Sprintf("Number of boosters eaten: %d\n", f.snake.countOfEatBoosters)
-	for i, v := range f.enemies {
+	s += fmt.Sprintf("Snake size: %d\n", f.snake.GetSize()+1)
+	s += fmt.Sprintf("Number of boosters eaten: %d\n", f.snake.GetCountOfEatBoosters())
+	for i, v := range f.GetEnemies() {
 		s += fmt.Sprintf("Enemy [%d], isOneShot: [%t], cells: [%d]\n", i, v.isOneShot, v.countOfCells)
 	}
 	s += "\n"
@@ -159,7 +161,7 @@ func (f *Field) InitSnake() {
 
 	head := f.snake.CreateHead(HeadSymbol, posX, posY)
 
-	f.buffer[head.positionX][head.positionY] = head.symbol
+	f.SetBufferCell(head.positionX, head.positionY, head.symbol)
 
 	f.logger.WriteString(fmt.Sprintf("Spawn head %v", head))
 
@@ -179,7 +181,7 @@ func (f *Field) InitSnake() {
 
 		l++
 
-		f.buffer[bodyCell.positionX][bodyCell.positionY] = bodyCell.symbol
+		f.SetBufferCell(bodyCell.positionX, bodyCell.positionY, bodyCell.symbol)
 
 		f.logger.WriteString(fmt.Sprintf("Spawn body %v", bodyCell))
 	}
@@ -204,7 +206,7 @@ func (f *Field) MoveHead() error {
 	cell.prevPositionX = cell.positionX
 	cell.prevPositionY = cell.positionY
 
-	f.buffer[cell.positionX][cell.positionY] = fieldSymbol
+	f.SetBufferCell(cell.positionX, cell.positionY, fieldSymbol)
 
 	switch f.direction {
 	case directionLeft:
@@ -225,26 +227,18 @@ func (f *Field) MoveHead() error {
 		return errors.New("you ate yourself")
 	}
 
-	f.logger.WriteString(
-		fmt.Sprintf(
-			"Calculated positions for head: currentX [%d], currentY [%d], prevX [%d], prevY [%d]",
-			cell.positionX, cell.positionY, cell.prevPositionX, cell.prevPositionY,
-		),
-		true,
-	)
-
-	for i, booster := range f.boosters {
+	for i, booster := range f.GetBoosters() {
 		if cell.positionX == booster.positionX && cell.positionY == booster.positionY {
 			f.logger.WriteString(fmt.Sprintf("Booster [%d] eats", i))
 
-			f.snake.countOfEatBoosters++
+			f.snake.IncrementAteBoosters()
 			f.snake.AddCell(BodySymbol)
 
 			f.DeSpawnBooster(i)
 		}
 	}
 
-	for i, enemy := range f.enemies {
+	for i, enemy := range f.GetEnemies() {
 		if cell.positionX == enemy.positionX && cell.positionY == enemy.positionY && enemy.isActive {
 			countOfCells := enemy.countOfCells
 			if enemy.isOneShot || len(f.snake.cells) < int(countOfCells) {
@@ -255,7 +249,7 @@ func (f *Field) MoveHead() error {
 				coordinates := f.snake.DeleteLastCells(int(countOfCells))
 
 				for _, v := range coordinates {
-					f.buffer[v.positionX][v.positionY] = fieldSymbol
+					f.SetBufferCell(v.positionX, v.positionY, fieldSymbol)
 				}
 			}
 		}
@@ -286,7 +280,7 @@ func (f *Field) MoveHead() error {
 		}
 	}
 
-	f.buffer[cell.positionX][cell.positionY] = cell.symbol
+	f.SetBufferCell(cell.positionX, cell.positionY, cell.symbol)
 
 	return nil
 }
@@ -297,34 +291,18 @@ func (f *Field) FillBody() {
 	prevPositionX := headCell.prevPositionX
 	prevPositionY := headCell.prevPositionY
 
-	for i, v := range f.snake.cells {
-		f.logger.WriteString(
-			fmt.Sprintf(
-				"Fill body: i [%d], currentX [%d], currentY [%d], prevX [%d], prevY [%d], prevHeadX [%d], prevHeadY [%d]",
-				i, v.positionX, v.positionY, v.prevPositionX, v.prevPositionY, prevPositionX, prevPositionY,
-			),
-			true,
-		)
-
+	for _, v := range f.snake.GetCells() {
 		v.prevPositionX = v.positionX
 		v.prevPositionY = v.positionY
 
 		v.positionX = prevPositionX
 		v.positionY = prevPositionY
 
-		f.buffer[v.prevPositionX][v.prevPositionY] = fieldSymbol
-		f.buffer[v.positionX][v.positionY] = v.symbol
+		f.SetBufferCell(v.prevPositionX, v.prevPositionY, fieldSymbol)
+		f.SetBufferCell(v.positionX, v.positionY, v.symbol)
 
 		prevPositionX = v.prevPositionX
 		prevPositionY = v.prevPositionY
-
-		f.logger.WriteString(
-			fmt.Sprintf(
-				"Fill body end: i [%d], currentX [%d], currentY [%d], prevX [%d], prevY [%d], prevHeadX [%d], prevHeadY [%d]",
-				i, v.positionX, v.positionY, v.prevPositionX, v.prevPositionY, prevPositionX, prevPositionY,
-			),
-			true,
-		)
 	}
 }
 
@@ -340,6 +318,9 @@ func (f *Field) OnStep() error {
 }
 
 func (f *Field) ChangeDirection(d int32) error {
+	f.Lock()
+	defer f.Unlock()
+
 	headCell := *f.snake.GetHeadCell()
 	headCell = f.snake.CalculatePositions(headCell, d)
 
@@ -366,7 +347,7 @@ func (f *Field) ChangeDirectionByKey() {
 
 		switch key {
 		case keyBackspace:
-			f.isActive = false
+			f.SetIsActive(false)
 		case keyLeft:
 			d = directionLeft
 			break
@@ -388,10 +369,16 @@ func (f *Field) ChangeDirectionByKey() {
 }
 
 func (f *Field) IsActive() bool {
+	f.Lock()
+	defer f.Unlock()
+
 	return f.isActive
 }
 
 func (f *Field) SetIsActive(isActive bool) {
+	f.Lock()
+	defer f.Unlock()
+
 	f.isActive = isActive
 }
 
@@ -413,4 +400,18 @@ func (f *Field) ReCalcEnemies() {
 
 func (f *Field) ReCalcBoosters() {
 	f.SpawnBooster()
+}
+
+func (f *Field) GetBuffer() [lineSize][lineSize]int32 {
+	f.Lock()
+	defer f.Unlock()
+
+	return *f.buffer
+}
+
+func (f *Field) SetBufferCell(x int32, y int32, symbol int32) {
+	f.Lock()
+	defer f.Unlock()
+
+	f.buffer[x][y] = symbol
 }
